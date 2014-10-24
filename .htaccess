@@ -1,0 +1,12 @@
+<Files deploy.php>
+    Order Deny,Allow
+    Deny from all
+    Allow from 127.0.0.1
+</Files>
+
+RewriteEngine on
+
+RewriteCond %{REQUEST_URI} !^/$ [NC]
+RewriteCond %{REQUEST_URI} !^/index\..* [NC]
+RewriteCond %{REQUEST_URI} !^/.+/.*$ [NC]
+RewriteRule ^(.*)$ /prod/streams/shorturl.php?code=$1 [L]
