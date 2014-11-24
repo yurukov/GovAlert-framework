@@ -4,8 +4,7 @@
 
 0: съобщения http://www.mh.government.bg/AllMessages.aspx
 1: новини http://www.mh.government.bg/News.aspx?pageid=401
-
-2: проекти за нормативни актове http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=393
+2: проекти за нормативни актове http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=393 
 3: наредби http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=391
 4: постановления http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=381
 5: отчети http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=532&currentPage=1
@@ -87,6 +86,122 @@ function mh_Novini() {
   queueTweets($itemids);
 }
 
+function mh_Normativni() {
+  echo "> Проверявам за нормативни актове в МЗ\n";
+  setSession(21,2);
+
+  $html = loadURL("http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=393",2);
+  if (!$html) return;
+  $items = mh_xpathDoc($html,"//table[@id='ctl00_ContentPlaceClient_ucArticlesList_gvArticles']//tr[not(@class)]/td");
+
+  $query=array();
+	foreach ($items as $item) {
+    $date = $item->childNodes->item(3)->textContent;
+    $date = mh_cleanText($date); 
+    $date = explode(".",$date);
+    $date = substr($date[2],0,4)."-".$date[1]."-".substr($date[0],-2);
+
+    if (strtotime($date)<strtotime("-1 month"))
+      continue;
+
+    $title = $item->childNodes->item(1)->textContent;
+    $title = mh_cleanText($title); 
+    
+    $url = $item->childNodes->item(1)->getAttribute("href");
+    $urlstart = strpos($url,'Articles.aspx');
+    $url = substr($url,$urlstart,strpos($url,'"',$urlstart)-$urlstart);
+    $url = "http://www.mh.government.bg/$url";
+    $hash = md5($url);
+
+    $query[]=array($title,null,$date,$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови нормативни актове\n";
+
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
+
+function mh_Naredbi() {
+  echo "> Проверявам за наредби в МЗ\n";
+  setSession(21,3);
+
+  $html = loadURL("http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=391",3);
+  if (!$html) return;
+  $items = mh_xpathDoc($html,"//table[@id='ctl00_ContentPlaceClient_ucArticlesList_gvArticles']//tr[not(@class)]/td/a[@class='list_article_title']");
+
+  $query=array();
+	foreach ($items as $item) {
+    $title = $item->textContent;
+    $title = mh_cleanText($title); 
+
+    $url = $item->getAttribute("href");
+    $urlstart = strpos($url,'Articles.aspx');
+    $url = substr($url,$urlstart,strpos($url,'"',$urlstart)-$urlstart);
+    $url = "http://www.mh.government.bg/$url";
+    $hash = md5($url);
+
+    $query[]=array($title,null,"now",$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови наредби\n";
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
+
+function mh_Postanovleniq() {
+  echo "> Проверявам за постановления в МЗ\n";
+  setSession(21,4);
+
+  $html = loadURL("http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=381",4);
+  if (!$html) return;
+  $items = mh_xpathDoc($html,"//table[@id='ctl00_ContentPlaceClient_ucArticlesList_gvArticles']//tr[not(@class)]/td/a[@class='list_article_title']");
+
+  $query=array();
+	foreach ($items as $item) {
+    $title = $item->textContent;
+    $title = mh_cleanText($title); 
+
+    $url = $item->getAttribute("href");
+    $urlstart = strpos($url,'Articles.aspx');
+    $url = substr($url,$urlstart,strpos($url,'"',$urlstart)-$urlstart);
+    $url = "http://www.mh.government.bg/$url";
+    $hash = md5($url);
+
+    $query[]=array($title,null,"now",$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови постановления\n";
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
+
+function mh_Otcheti() {
+  echo "> Проверявам за отчети в МЗ\n";
+  setSession(21,5);
+
+  $html = loadURL("http://www.mh.government.bg/Articles.aspx?lang=bg-BG&pageid=532",5);
+  if (!$html) return;
+  $items = mh_xpathDoc($html,"//table[@id='ctl00_ContentPlaceClient_ucArticlesList_gvArticles']//tr[not(@class)]/td/a[@class='list_article_title']");
+
+  $query=array();
+	foreach ($items as $item) {
+    $title = $item->textContent;
+    $title = mh_cleanText($title); 
+
+    $url = $item->getAttribute("href");
+    $urlstart = strpos($url,'Articles.aspx');
+    $url = substr($url,$urlstart,strpos($url,'"',$urlstart)-$urlstart);
+    $url = "http://www.mh.government.bg/$url";
+    $hash = md5($url);
+
+    $query[]=array($title,null,"now",$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови отчети\n";
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
 
 /*
 -----------------------------------------------------------------

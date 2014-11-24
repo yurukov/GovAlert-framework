@@ -8,7 +8,7 @@ Links
 4: бургас ------ http://www.rdvr-burgas.org/Bul/Suobshtenie/Realno.htm
 5: варна http://varna.mvr.bg/Prescentar/Novini/default.htm
 6: велико търново http://www.veliko-tarnovo.mvr.bg/Prescentar/Novini/default.htm
-7: велико търново изчезнали http://www.veliko-tarnovo.mvr.bg/Prescentar/Izdirvani_lica/default.htm
+7: велико търново изчезнали http://www.veliko-tarnovo.mvr.bg/Prescentar/Izdirvani_lica/
 8: видин http://www.vidin.mvr.bg/PressOffice/News/default.htm
 9: видин изчезнали http://www.vidin.mvr.bg/Pressoffice/Izdirvani_lica/default.htm
 10: враца http://www.vratza.mvr.bg/PressOffice/News/default.htm
@@ -77,7 +77,7 @@ function mvrVelikotarnovo() {
 }
 
 function mvrVelikotarnovoIzdirvani() {
-  loadMVRpage("[В.Търново] ","МВР В.Търново","изчезнали",7,"http://www.veliko-tarnovo.mvr.bg/Prescentar/Izdirvani_lica/default.htm","http://www.veliko-tarnovo.mvr.bg","lipsva",true);
+  loadMVRpage("[В.Търново] ","МВР В.Търново","изчезнали",7,"http://www.veliko-tarnovo.mvr.bg/Prescentar/Izdirvani_lica/","http://www.veliko-tarnovo.mvr.bg","lipsva",true);
 }
 
 function mvrVidin() {
@@ -448,7 +448,13 @@ function loadMVRpage($prefix,$logtitle,$logwhat,$num,$url,$urlbase,$retweet=fals
   echo "Възможни ".count($query)." нови $logwhat\n";
 
   $itemids = saveItems($query);
-  queueTweets($itemids,$retweet?$retweet:"mibulgaria",$retweet?"mibulgaria":null);
+  if ($retweet=="lipsva")
+    queueTweets($itemids,"lipsva","mibulgaria");
+  else
+  if ($retweet=="govalerteu")
+    queueTweets($itemids,"mibulgaria","govalerteu");
+  else
+    queueTweets($itemids,"mibulgaria");
 }
 
 /*

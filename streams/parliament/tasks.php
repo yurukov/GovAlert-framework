@@ -10,6 +10,13 @@
 5/6 решения http://parliament.bg/bg/desision/period
 7 събития http://parliament.bg/bg/calendar
 8/9 декларации http://parliament.bg/bg/declaration
+10 нови комисии http://parliament.bg/bg/parliamentarycommittees
+
+- комисии - заседания http://parliament.bg/bg/parliamentarycommittees/members/2289/sittings
+- комисии - новини http://parliament.bg/bg/parliamentarycommittees/members/2289/news
+- комисии - документи http://parliament.bg/bg/parliamentarycommittees/members/2289/documents
+- комисии - доклади http://parliament.bg/bg/parliamentarycommittees/members/2290/reports/period/2014-11
+- комисии - стенограми http://parliament.bg/bg/parliamentarycommittees/members/2289/steno/period/2014-11
 
 */
 
@@ -24,6 +31,7 @@ function parlZakonoproekti() {
   $items = $xpath->query("//table[@class='billsresult']//tr[not(@class)]");
   if (is_null($items)) return;
 
+  $queryGov=array();
   $query=array();
 	foreach ($items as $item) {
     $hash = md5($item->childNodes->item(0)->childNodes->item(1)->getAttribute("href"));
@@ -32,6 +40,7 @@ function parlZakonoproekti() {
     if (strtotime($date)<strtotime("-1 month"))
       continue;
     $url = $item->childNodes->item(0)->childNodes->item(1)->getAttribute("href");
+    $url = "http://parliament.bg$url";
     $title = $item->childNodes->item(0)->textContent;
     if (mb_strlen($title)>100) {
       $title = mb_ereg_replace("Законопроект за изменение и допълнение","ЗпИД",$title,"im");
@@ -39,13 +48,24 @@ function parlZakonoproekti() {
     } 
     $title = mb_ereg_replace("ЗИД","ЗпИД",$title,"im");
     $title = parl_cleanText($title);
-    $query[]=array($title,null,$date,"http://parliament.bg$url",$hash);
+
+    $importer = parl_cleanText($item->childNodes->item(6)->textContent);
+    $importer = mb_convert_case($importer,MB_CASE_LOWER);
+
+    if ($importer=="министерски съвет")
+      $queryGov[]=array($title,null,$date,$url,$hash);
+    else
+      $query[]=array($title,null,$date,$url,$hash);
   }
 
-  echo "Възможни ".count($query)." нови законопроекта\n";
+  echo "Възможни ".(count($query)+count($queryGov))." нови законопроекта\n";
 
   $itemids = saveItems($query);
   queueTweets($itemids,'narodnosabranie',true);
+
+  $itemids = saveItems($queryGov);
+  queueTweets($itemids,'narodnosabranie',array("GovAlertEU","GovBulgaria"));
+
 }
 
 function parlParlamentarenKontrol() {
@@ -343,6 +363,272 @@ function parlDeklaracii() {
   $query = array_reverse($query);
   $itemids = saveItems($query);
   queueTweets($itemids,'narodnosabranie',true);
+}
+
+function parlKomisii() {
+  global $link;
+
+  echo "> Проверявам за комисии в НС\n";
+  setSession(4,8);
+
+  $html = loadURL("http://parliament.bg/bg/parliamentarycommittees",10);
+  if (!$html) return;
+  $xpath = parl_xpathDoc($html);
+  if (!$xpath) return;
+  $items = $xpath->query("//label[@for]/a");
+
+  $commissionids = array();
+  $res=$link->query("SELECT committee_id FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $commissionids[]=$row[0];
+  }
+  $res->free();
+
+  $commissions = array();
+	foreach ($items as $item) {
+    $id = $item->getAttribute("href");
+    $id = substr($id,strrpos($id,'/')+1);
+    $id = intval($id);
+    if (in_array($id,$commissionids))
+      continue;
+    $title = parl_cleanText($item->textContent);
+    $title = $link->escape_string($item->textContent);
+    $commissions[]=array($id,$title);
+  }
+  if (count($commissions)==0)
+    return;
+
+  echo "Има ".count($commissions)." нови комисии\n";
+
+  $query=array();
+  foreach ($commissions as $commission) {
+    $link->query("insert LOW_PRIORITY ignore into s_parliament_committees (committee_id,name) value (".$commission[0].",'".$commission[1]."')")
+      or reportDBErrorAndDie();
+    $title="Нова комисия: ".$commission[1];
+    $url = "http://parliament.bg/bg/parliamentarycommittees/members/".$commission[0];
+    $hash = md5($url);
+    $query[]=array($title,null,'now',$url,$hash);
+  }
+  $query = array_reverse($query);
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie',true);
+}
+
+function parlKomisiiZasedaniq() {
+  global $link;
+
+  echo "> Проверявам за заседания на комисии в НС\n";
+  setSession(4,9);
+
+  $checkUrls = array();
+  $res=$link->query("SELECT committee_id FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $checkUrls[]="http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/sittings/period/".date("Y-m");
+    $checkUrls[]="http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/sittings/period/".date("Y-m",strtotime("+1 month"));
+  }
+  $res->free();
+
+  $query = array();
+  foreach ($checkUrls as $checkUrl) {
+    $html = loadURL($checkUrl);
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@id='monthview']//li/a");
+
+	  foreach ($items as $item) {
+      $url = 'http://parliament.bg'.$item->getAttribute("href");
+      $hash = md5($url);
+      if (!checkHash($hash))
+        continue;
+
+      $html1 = loadURL($url);
+      if (!$html1) continue;
+      $xpath1 = parl_xpathDoc($html1);
+      if (!$xpath1) continue;
+
+      $items1 = $xpath1->query("//div[@class='marktitle']");
+      $title = parl_cleanText($items1->item(0)->firstChild->textContent);
+      $items1 = $xpath1->query("//div[@class='marktitle']/div[@class='dateclass']");
+      $dateF = parl_cleanText($items1->item(0)->firstChild->textContent);
+      $dateF = str_replace("/",".",str_replace(", "," от ",$dateF));
+
+      $title = "Заседание на $dateF на $title";
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+  }
+
+  echo "Възможни ".count($query)." нови заседания\n";
+  $query = array_reverse($query);
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie',true);
+}
+
+function parlKomisiiNovini() {
+  global $link;
+
+  echo "> Проверявам за новини на комисии в НС\n";
+  setSession(4,10);
+
+  $checkUrls = array();
+  $res=$link->query("SELECT committee_id FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $checkUrls[]="http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/news/period/".date("Y-m");
+    $checkUrls[]="http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/news/period/".date("Y-m",strtotime("-1 month"));
+  }
+  $res->free();
+
+  $query = array();
+  foreach ($checkUrls as $checkUrl) {
+    $html = loadURL($checkUrl);
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@id='monthview']//li/a");
+
+	  foreach ($items as $item) {
+      $url = 'http://parliament.bg'.$item->getAttribute("href");
+      $hash = md5($url);
+      if (!checkHash($hash))
+        continue;
+
+      $title = parl_cleanText($item->textContent);
+      $title = "Новина от комисия: $title";
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+  }
+
+  echo "Възможни ".count($query)." нови новини\n";
+  $query = array_reverse($query);
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie',true);
+}
+
+function parlKomisiiDokumenti() {
+  global $link;
+
+  echo "> Проверявам за документи на комисии в НС\n";
+  setSession(4,11);
+
+  $checkUrls = array();
+  $res=$link->query("SELECT committee_id, name FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $commName = $row[1];
+    $html = loadURL("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/documents");
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@class='markframe']//div[@class='MProw']/a");
+
+    $query = array();
+	  foreach ($items as $item) {
+      $url = 'http://parliament.bg'.$item->getAttribute("href");
+      $hash = md5($url);
+      if (!checkHash($hash))
+        continue;
+
+      $title = parl_cleanText($item->textContent);
+      $title = "Документ в комисия: $title";
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+    echo "Възможни ".count($query)." нови документи\n";
+
+    $itemids = saveItems($query);
+    if (count($itemids)<=4)
+      queueTweets($itemids,'narodnosabranie');
+    else
+      queueTextTweet("Качени са ".count($itemids)." нови документа в $commName","http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/documents",'narodnosabranie');  
+  }
+  $res->free();
+}
+
+
+function parlKomisiiDokladi() {
+  global $link;
+
+  echo "> Проверявам за доклади на комисии в НС\n";
+  setSession(4,12);
+
+  $checks = array();
+  $res=$link->query("SELECT committee_id, name FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/reports/period/".date("Y-m"),$row[01]);
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/reports/period/".date("Y-m",strtotime("-1 month")),$row[1]);
+  }
+  $res->free();
+
+  $query = array();
+  foreach ($checks as $check) {
+    $html = loadURL($check[0]);
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@id='monthview']//li");
+
+	  foreach ($items as $item) {
+      $url = 'http://parliament.bg'.$item->firstChild->getAttribute("href");
+      $hash = md5($url);
+      if (!checkHash($hash))
+        continue;
+
+      $dateP = parl_cleanText($item->lastChild->textContent);
+      $dateP = substr(str_replace("/",".",$dateP),2);
+
+      $title = "Доклад от заседанието на $dateP на ".$check[1];
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+  }
+
+  echo "Възможни ".count($query)." нови доклади\n";
+  $query = array_reverse($query);
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie');
+}
+
+function parlKomisiiStenogrami() {
+  global $link;
+
+  echo "> Проверявам за стенограми на комисии в НС\n";
+  setSession(4,13);
+
+  $checks = array();
+  $res=$link->query("SELECT committee_id, name FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/steno/period/".date("Y-m"),$row[01]);
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/steno/period/".date("Y-m",strtotime("-1 month")),$row[1]);
+  }
+  $res->free();
+
+  $query = array();
+  foreach ($checks as $check) {
+    $html = loadURL($check[0]);
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@id='monthview']//li");
+
+	  foreach ($items as $item) {
+      $url = 'http://parliament.bg'.$item->firstChild->getAttribute("href");
+      $hash = md5($url);
+      if (!checkHash($hash))
+        continue;
+
+      $dateP = parl_cleanText($item->lastChild->textContent);
+      $dateP = substr(str_replace("/",".",$dateP),2);
+
+      $title = "Стенограма от заседанието на $dateP на ".$check[1];
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+  }
+
+  echo "Възможни ".count($query)." нови стенограми\n";
+  $query = array_reverse($query);
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie');
 }
 
 /*

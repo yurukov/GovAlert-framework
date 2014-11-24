@@ -40,7 +40,7 @@ function strategy_processUrl($url) {
 	$description = str_replace("\\r ","",$description);
   $description = mb_ereg_replace("<p>[  ]*</p>|<a>[  ]*</a>|<div>[  ]*</div>","",$description);
   $itemids = saveItem($title,$description,"now",$url,$hash);
-  queueTweets($itemids);
+  queueTweets($itemids,'govalerteu','GovBulgaria');
 }
 
 function strategy_cleanText($text) {

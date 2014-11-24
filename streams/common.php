@@ -8,7 +8,7 @@ mb_internal_encoding("UTF-8");
 mb_regex_encoding("UTF-8");
 set_error_handler('errorHandler');
 
-$link = mysqli_connect('localhost', 'activist', 'password', "activist") or die("Не мога да се свържа с базата данни. ".$link->error);
+$link = mysqli_connect('localhost', 'username', 'password', "activist") or die("Не мога да се свържа с базата данни. ".$link->error);
 $link->set_charset("utf8");
 
 $session = array("sourceid"=>null,"category"=>null,"error"=>false);

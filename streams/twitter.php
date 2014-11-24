@@ -31,7 +31,15 @@ function queueTextTweet($text, $urls, $account='govalerteu',$retweet=false) {
       $text .= " ".$urltext;
     $position++;
   }
-  $retweet = $retweet?(is_string($retweet)?"'$retweet'":"'1'"):"null";
+
+  if (!$retweet)
+    $retweet="null";
+  else if (is_string($retweet))
+    $retweet = "'$retweet'";
+  else if (is_array($retweet))
+    $retweet = "'".implode(",",$retweet)."'";
+  else
+    $retweet="'govalerteu'";
 
   $link->query("insert LOW_PRIORITY ignore into tweet (account, queued, text, sourceid, priority, retweet) value ('$account',now(),'$text',".$session["sourceid"].",1,$retweet)") or reportDBErrorAndDie(); 
 }
@@ -41,7 +49,16 @@ function queueTweets($itemids, $account='govalerteu',$retweet=false) {
   if (!$itemids || count($itemids)==0)
     return;
   echo "Планирам ".count($itemids)." tweet-а\n";
-  $retweet = $retweet?(is_string($retweet)?"'$retweet'":"'1'"):"null";
+
+  if (!$retweet)
+    $retweet="null";
+  else if (is_string($retweet))
+    $retweet = "'$retweet'";
+  else if (is_array($retweet))
+    $retweet = "'".implode(",",$retweet)."'";
+  else
+    $retweet="govalerteu";
+
   $query = array();
   foreach ($itemids as $id)
     $query[]="($id,'$account',now(), $retweet)";
@@ -62,7 +79,9 @@ function replaceAccounts($title,$cutlen) {
     "@IvailoKalfin" => array("Ивайло Калфин","Калфин"),
     "@FandakovaY" => array("Йорданка Фандъкова","Фандъкова"),
     "@Stoli4naOb6tina" => array("Столична община"),
-    "@UniversitySofia" => array("Софийски университет")
+    "@UniversitySofia" => array("Софийски университет"),
+    "@MoskovPetar" => array("Петър Москов"),
+    "@rmkanev" => array("Радан Кънев")
   );
 
   foreach ($map as $account=>$strings)
@@ -80,14 +99,23 @@ function replaceAccount($title,$account,$cutlen,$texts) {
     }
   if ($text===false || $loc+mb_strlen($account)>=$cutlen)
     return $title;
-  return mb_substr($title,0,$loc).$account.mb_substr($title,$loc+mb_strlen($text));  
+  $firstPart = mb_substr($title,0,$loc);
+  if (trim($firstPart)=='')
+    $firstPart=".";
+  return $firstPart.$account.mb_substr($title,$loc+mb_strlen($text));  
 }
 
 function postTwitter() {
   global $link;
 
-  $res=$link->query("select t.tweetid, t.itemid, t.text, t.sourceid, t.account, t.retweet, i.title, i.url, s.shortname, s.geo, count(m.type) media from tweet t left outer join item i on i.itemid=t.itemid left outer join source s on i.sourceid=s.sourceid or t.sourceid=s.sourceid left outer join item_media m on m.itemid=t.itemid where error is null group by t.itemid order by t.account, t.priority desc, t.queued, t.itemid limit 5") or reportDBErrorAndDie();  
+  $twitterAuth=array();
+  $res=$link->query("SELECT handle, token, secret FROM twitter_auth") or reportDBErrorAndDie();  
+  while ($row=$res->fetch_assoc()) {
+    $twitterAuth[strtolower($row['handle'])]=array($row['token'],$row['secret']);
+  }
+  $res->free();
 
+  $res=$link->query("select t.tweetid, t.itemid, t.text, t.sourceid, t.account, t.retweet, i.title, i.url, s.shortname, s.geo, count(m.type) media from tweet t left outer join item i on i.itemid=t.itemid left outer join source s on i.sourceid=s.sourceid or t.sourceid=s.sourceid left outer join item_media m on m.itemid=t.itemid where error is null group by t.itemid order by t.account, t.priority desc, t.queued, t.itemid limit 5") or reportDBErrorAndDie();  
 
   if ($res->num_rows>0) {
     echo "Изпращам ".$res->num_rows." tweet/s\n";
@@ -104,21 +132,10 @@ function postTwitter() {
         sleep(20);
       $first=false;
     
-      if ($connection == false || $currentAccount===false || $currentAccount!=$row['account']) {
-        $currentAccount=$row['account'];
-        if ($row['account']=="govalerteu") {
-          $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, CONSUMER_TOKEN_GOVALERTEU, CONSUMER_TOKEN_SECRET_GOVALERTEU);
-        } else 
-        if ($row['account']=="narodnosabranie") {
-          $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, CONSUMER_TOKEN_NS, CONSUMER_TOKEN_SECRET_NS);
-        } else
-        if ($row['account']=="lipsva") {
-          $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, CONSUMER_TOKEN_LIPSVA, CONSUMER_TOKEN_SECRET_LIPSVA);
-        } else
-        if ($row['account']=="mibulgaria") {
-          $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, CONSUMER_TOKEN_MIBULGARIA, CONSUMER_TOKEN_SECRET_MIBULGARIA);
-        } 
-
+      if ($connection == false || $currentAccount===false || $currentAccount!=strtolower($row['account'])) {
+        $currentAccount=strtolower($row['account']);
+        $currentAuth=$twitterAuth[$currentAccount];
+        $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, $currentAuth[0], $currentAuth[1]);
         $connection->host = "https://api.twitter.com/1.1/";
         $connection->useragent = 'Activist Dashboard notifier';
         $connection->ssl_verifypeer = TRUE;
@@ -196,8 +213,12 @@ function postTwitter() {
 
         if ($row['retweet'] && !$tres->errors) {
           $tweetid=$link->escape_string($tres->id_str);
-          $account = $row['retweet']!="1"?$row['retweet']:'govalerteu';
-          $link->query("insert LOW_PRIORITY ignore into tweet (account, queued, retweet) value ('$account',now(),'$tweetid')") or reportDBErrorAndDie(); 
+          $accounts = split(",",$row['retweet']);
+          $query = array();
+          foreach ($accounts as $account) {
+            $query[]="('$account',now(),'$tweetid')";
+          }
+          $link->query("insert LOW_PRIORITY ignore into tweet (account, queued, retweet) values ".implode(",",$query)) or reportDBErrorAndDie(); 
         }
       }
 

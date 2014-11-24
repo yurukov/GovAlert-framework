@@ -30,7 +30,7 @@ function interpolProcessIzcheznali() {
     "Обявени са още %d българи за безследно изчезнали  /CC @Interpol_HQ",
     "http://www.interpol.int/notice/search/missing/(offset)/0/(Nationality)/122/(current_age_maxi)/100/(search)/1",
     "http://www.interpol.int/notice/search/missing",
-    "lipsva", 1));
+    "lipsva", array("mibulgaria","GovAlertEU")));
 }
 
 function interpolProcessIzdirvani() {
@@ -40,7 +40,7 @@ function interpolProcessIzdirvani() {
     "Обявени са още %d души за издирване  /CC @Interpol_HQ",
     "http://www.interpol.int/notice/search/wanted/(offset)/%d/(Nationality)/122/(current_age_maxi)/100/(search)/1",
     "http://www.interpol.int/notice/search/wanted",
-    "mibulgaria", 1));
+    "mibulgaria", "GovAlertEU"));
 }
 
 function interpolLoad($prop) {
@@ -200,9 +200,9 @@ function interpol_xpath($html) {
 }
 
 function transliterate($textlat = null) {
-    $cyr = array('Я','Ц','Ц','Ж','Ч','Щ','Ш','Ю','ЙО','С','А','Б','В','Г','Д','Е','З',
+    $cyr = array('Я','Ц','Ц','Ж','Ч','Щ','Ш','Ю','ЙО','С','ИЙ','А','Б','В','Г','Д','Е','З',
 'И','Й','К','Л','М','Н','О','П','Р','С','Т','У','Ф','Х','Ъ','Я');
-    $lat = array('YA','TS','TZ','ZH','CH','SHT','SH','YU','YO','SS','A','B','V','G','D','E','Z',
+    $lat = array('YA','TS','TZ','ZH','CH','SHT','SH','YU','YO','SS','YI','A','B','V','G','D','E','Z',
 'I','Y','K','L','M','N','O','P','R','S','T','U','F','H','A','J');
     return str_replace($lat,$cyr,$textlat);
 }

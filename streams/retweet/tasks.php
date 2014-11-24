@@ -1,7 +1,5 @@
 <?php
 
-//  MFABulgaria
-
 function retweetAccounts() {
   global $link,$session;
 
@@ -17,15 +15,15 @@ function retweetAccounts() {
   $attempts=4;
   $minActivity = 3;
   $maxtimetowait = 2*60*60*24;
-  $mintimetocheck = 60*60*2;
+  $mintimetocheck = 60*15;
   $maxtimetocheck = 60*60*24*4+$mintimetocheck;
   $kirilica = array('а','б','в','г','д','е','ж','з','и','й','к','л',
   'м','н','о','п','р','с','т','у','ф','х','ц','ш','щ','ъ','ь','ю','я');
   
   while ($attempts>0) {
     $attempts--;
-  
-    $res=$link->query("SELECT twitter, lasttweet, lastretweet, if(tw_num=0,0,(tw_rts+tw_fav)/tw_num) ".
+
+    $res=$link->query("SELECT twitter, lasttweet, lastretweet, if(tw_num=0,0,(tw_rts+tw_fav)/tw_num*2/3) ".
       "FROM s_retweet order by lastcheck asc limit 1") or reportDBErrorAndDie();
 
     $account='BgPresidency';
@@ -62,12 +60,13 @@ function retweetAccounts() {
 
     $tweets = array();
     foreach ($tres as $tweet) {
-      if ($tweet->id_str<=$lasttweet)
+      if ($lasttweet!=null && $tweet->id_str<=$lasttweet)
         break;
       $period = time()-strtotime($tweet->created_at);
       if ($period>$maxtimetocheck || $period<$mintimetocheck)
         break;
 
+      $otgovor = $tweet->in_reply_to_status_id_str=="" || $tweet->in_reply_to_status_id_str==null;
       $zaBulgaria = 0;
       $textTweet = mb_convert_case($tweet->text, MB_CASE_LOWER);
       foreach ($kirilica as $bukva) 
@@ -78,14 +77,14 @@ function retweetAccounts() {
       if ($zaBulgaria==0 && mb_strpos($textTweet,"bulgaria")!==false) 
         $zaBulgaria = 1;
 
-      $tweets[]=array($tweet->retweet_count,$tweet->favorite_count,$tweet->id_str,$zaBulgaria);
+      $tweets[]=array($tweet->retweet_count,$tweet->favorite_count,$tweet->id_str,$zaBulgaria, $otgovor);
     }
 
     echo "> Открих ".count($tweets)." tweet-а от последния RT\n";
     if (count($tweets)>0) {
       usort($tweets,"retweet_sortTweets");
 
-      if ($tweets[0][0]+$tweets[0][1]=>$avgActivity || ($forceRT && $tweets[0][0]+$tweets[0][1]=>$minActivity)) {
+      if ($tweets[0][0]+$tweets[0][1]>=$avgActivity || ($forceRT && $tweets[0][0]+$tweets[0][1]>=$minActivity)) {
         echo "> Tweet-а с най-много интерес (".($tweets[0][0]+$tweets[0][1]).") ще бъде RT-нат.\n";
 
         $link->query("update s_retweet set lasttweet='".$tweets[0][2]."', lastretweet=now(), lastcheck=now(), ".
@@ -105,6 +104,8 @@ function retweetAccounts() {
 function retweet_sortTweets($a,$b) { 
   if ($a[3]!=$b[3])
     return $a[3] > $b[3] ? -1 : 1;
+  if ($a[4]!=$b[4])
+    return $b[4] ? -1 : 1;
   else if ($a[0]+$a[1]==$b[0]+$b[1])
     return $a[0]!=$b[0] ? 0 : ($a[0] > $b[0] ? -1 : 1);
   else
