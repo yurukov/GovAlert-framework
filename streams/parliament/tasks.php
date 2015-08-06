@@ -17,6 +17,9 @@
 - комисии - документи http://parliament.bg/bg/parliamentarycommittees/members/2289/documents
 - комисии - доклади http://parliament.bg/bg/parliamentarycommittees/members/2290/reports/period/2014-11
 - комисии - стенограми http://parliament.bg/bg/parliamentarycommittees/members/2289/steno/period/2014-11
+- комисии - членове http://parliament.bg/bg/parliamentarycommittees/members/2347
+
+11 държавен вестник http://dv.parliament.bg/DVWeb/broeveList.faces
 
 */
 
@@ -29,7 +32,7 @@ function parlZakonoproekti() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//table[@class='billsresult']//tr[not(@class)]");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $queryGov=array();
   $query=array();
@@ -81,7 +84,7 @@ function parlParlamentarenKontrol() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@class='rightinfo']/ul[@class='frontList']/li/a");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $query=array();
 	foreach ($items as $item) {
@@ -119,7 +122,7 @@ function parlPlenarnoZasedanie() {
   $dates = substr($dates,0,5)."-".substr($dates,13);
 
   $items = $xpath->query("//div[@class='markframe']//ol[@class='frontList']/li");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
   $count = $items->length;
   if ($count==0)
     $count = "";
@@ -156,7 +159,7 @@ function parlZakoni() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//table[@class='billsresult']//tr[not(@class)]");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $query=array();
 	foreach ($items as $item) {
@@ -190,7 +193,7 @@ function parlDokumentiZala() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//ul[@class='frontList1']/li/a");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $query=array();
 	foreach ($items as $item) {
@@ -231,14 +234,14 @@ function parlResheniq() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@class='calendar_columns' and h4/text()='".date("Y")."']//li/a");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 	$lasturl = $items->item($items->length-1)->getAttribute("href");
 
   $html = loadURL("http://parliament.bg$lasturl",6);
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@id='monthview']//li");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $query=array();
 	foreach ($items as $item) {
@@ -269,7 +272,7 @@ function parlSabitiq() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@class='markframe']//*[local-name()='div' or local-name()='li']");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $currentDateT=false;
   $currentDate=false;
@@ -338,14 +341,14 @@ function parlDeklaracii() {
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@class='calendar_columns' and h4/text()='".date("Y")."']//li/a");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 	$lasturl = $items->item($items->length-1)->getAttribute("href");
 
   $html = loadURL("http://parliament.bg$lasturl",9);
   $xpath = parl_xpathDoc($html);
   if (!$xpath) return;
   $items = $xpath->query("//div[@id='monthview']//li");
-  if (is_null($items)) return;
+  if (is_null($items) || $items->length==0) return;
 
   $query=array();
 	foreach ($items as $item) {
@@ -453,7 +456,7 @@ function parlKomisiiZasedaniq() {
       $dateF = parl_cleanText($items1->item(0)->firstChild->textContent);
       $dateF = str_replace("/",".",str_replace(", "," от ",$dateF));
 
-      $title = "Заседание на $dateF на $title";
+      $title = "Заседание на $dateF на ".parl_stressText($title);
       $query[]=array($title,null,'now',$url,$hash);
     }
   }
@@ -554,7 +557,7 @@ function parlKomisiiDokladi() {
   $checks = array();
   $res=$link->query("SELECT committee_id, name FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
   while ($row = $res->fetch_array()) {
-    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/reports/period/".date("Y-m"),$row[01]);
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/reports/period/".date("Y-m"),$row[1]);
     $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/reports/period/".date("Y-m",strtotime("-1 month")),$row[1]);
   }
   $res->free();
@@ -576,7 +579,7 @@ function parlKomisiiDokladi() {
       $dateP = parl_cleanText($item->lastChild->textContent);
       $dateP = substr(str_replace("/",".",$dateP),2);
 
-      $title = "Доклад от заседанието на $dateP на ".$check[1];
+      $title = "Доклад от заседанието на $dateP на ".parl_stressText($check[1]);
       $query[]=array($title,null,'now',$url,$hash);
     }
   }
@@ -597,7 +600,7 @@ function parlKomisiiStenogrami() {
   $checks = array();
   $res=$link->query("SELECT committee_id, name FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
   while ($row = $res->fetch_array()) {
-    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/steno/period/".date("Y-m"),$row[01]);
+    $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/steno/period/".date("Y-m"),$row[1]);
     $checks[]=array("http://parliament.bg/bg/parliamentarycommittees/members/".$row[0]."/steno/period/".date("Y-m",strtotime("-1 month")),$row[1]);
   }
   $res->free();
@@ -619,7 +622,7 @@ function parlKomisiiStenogrami() {
       $dateP = parl_cleanText($item->lastChild->textContent);
       $dateP = substr(str_replace("/",".",$dateP),2);
 
-      $title = "Стенограма от заседанието на $dateP на ".$check[1];
+      $title = "Стенограма от заседанието на $dateP на ".parl_stressText($check[1]);
       $query[]=array($title,null,'now',$url,$hash);
     }
   }
@@ -630,6 +633,113 @@ function parlKomisiiStenogrami() {
   $itemids = saveItems($query);
   queueTweets($itemids,'narodnosabranie');
 }
+
+function parlKomisiiChlenove() {
+  global $link;
+
+  echo "> Проверявам за членове на комисии в НС\n";
+  setSession(4,14);
+
+  $query = array();
+  $res=$link->query("SELECT committee_id, name, members, chairman FROM s_parliament_committees order by committee_id") or reportDBErrorAndDie();
+  while ($row = $res->fetch_array()) {
+    $url = "http://parliament.bg/bg/parliamentarycommittees/members/".$row[0];
+    $html = loadURL($url);
+    if (!$html) continue;
+    $xpath = parl_xpathDoc($html);
+    if (!$xpath) continue;
+    $items = $xpath->query("//div[@class='MPBlock']//img[@border='0']");
+
+    $chairmen = $row[3];
+    $members = $row[2]==null ? "" : $row[2];
+    $members = explode(",",$members);
+    $chairmennew = false;
+    $membersnew = array();
+
+	  foreach ($items as $item) {
+      $mpId = $item->getAttribute('src');
+      $mpId = substr($mpId,strlen("/images/Assembly/_thumb."),-strlen(".png"));
+      $mpId = intval($mpId);
+      $membersnew[]=$mpId;
+
+      if ($chairmennew===false) {
+        $chairmennew = $item->getAttribute('alt');
+        $chairmennew = explode(" ",$chairmennew);
+        $chairmennew = $chairmennew[0]." ".$chairmennew[count($chairmennew)-1];
+        $chairmennew = mb_convert_case($chairmennew,MB_CASE_TITLE);
+      }
+    }
+    sort($membersnew);
+    $newMp = array_diff($membersnew,$members);
+    $members = implode(",",$members);
+    $membersnew = implode(",",$membersnew);
+    
+    if (count($newMp)>0)  {
+      $title = count($newMp)==1? "Един нов член" : count($newMp)." нови члена"; 
+      $title = $title." в ".parl_stressText($row[1]);
+      $hash = md5($row[0].implode(",",$newMp));
+      $query[]=array($title,null,'now',$url,$hash);
+    }
+    if ($members!=$membersnew) {
+      $link->query("update LOW_PRIORITY ignore s_parliament_committees set members='$membersnew' where committee_id=".$row[0])
+        or reportDBErrorAndDie();
+    }
+    if ($chairmennew!=$chairmen) {
+      $title = $chairmennew." е вече председател на ".parl_stressText($row[1]);
+      $hash = md5($row[0].$chairmennew);
+      $query[]=array($title,null,'now',$url,$hash);
+
+      $link->query("update LOW_PRIORITY ignore s_parliament_committees set chairman='$chairmennew' where committee_id=".$row[0])
+        or reportDBErrorAndDie();
+    }
+
+  }
+  $res->free();
+
+  echo "Възможни ".count($query)." новини около членовете на комисии\n";
+  $query = array_reverse($query);
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie');
+}
+
+function parlDarjavenvestnik() {
+  echo "> Проверявам за броеве на държавен вестник в НС\n";
+  setSession(4,15);
+
+  $html = loadURL("http://dv.parliament.bg/DVWeb/broeveList.faces",11);
+  if (!$html) return;
+  $xpath = parl_xpathDoc($html);
+  if (!$xpath) return;
+  $items = $xpath->query("//table[@id='broi_form:dataTable1']//td[@class='td_tabResult0']");
+  if (is_null($items) || $items->length==0) return;
+
+  $query=array();
+	foreach ($items as $item) {
+    $hash = md5($item->textContent);
+
+    $date = parl_cleanText($item->textContent);
+    $date = mb_substr($date,mb_strpos($date,", ")+2,10);
+    if (substr($date,1,1)=='.')
+      $date="0$date";
+    $date = substr($date,6,4)."-".substr($date,3,2)."-".substr($date,0,2);
+    if (strtotime($date)<strtotime("-1 week"))
+      continue;
+
+    $title = parl_cleanText($item->textContent); 
+    $title = "Нов брой на Държавен вестник - ".mb_substr($title,5,mb_strpos($title,", ")-5)." от ".mb_substr($title,mb_strpos($title,", ")+2,10);
+   
+    $query[]=array($title,null,$date,"http://dv.parliament.bg/DVWeb/broeveList.faces",$hash);
+  }
+
+  echo "Възможни ".count($query)." нови броеве на държавен вестник\n";
+
+  $itemids = saveItems($query);
+  queueTweets($itemids,'narodnosabranie',true);
+
+}
+
+
 
 /*
 -----------------------------------------------------------------
@@ -654,5 +764,11 @@ function parl_cleanText($text) {
 	$text = html_entity_decode($text);
 	return $text;
 }
+
+function parl_stressText($text) {
+	$text = mb_ereg_replace("(К|к)омисия","\\1омисията",$text);
+	return $text;
+}
+
 
 ?>

@@ -76,7 +76,7 @@ function dansInformaciq() {
   }
   echo "Възможни ".count($query)." нови новини\n";
   $itemids = saveItems($query);
-  queueTweets($itemids,'GovAlertEU','MIBulgaria');
+  queueTweets($itemids,'GovAlertEU');
 }
 
 /*

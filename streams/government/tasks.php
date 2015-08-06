@@ -29,7 +29,6 @@ function govZasedaniq() {
     if (strtotime($date)<strtotime("-2 day"))
       continue;
     $title = $item->childNodes->item(0)->childNodes->item(1)->textContent;
-    $title = text_fixCase($title);
     $title = mb_ereg_replace("Министерския съвет","МС",$title,"im");
     $url = "http://www.government.bg".$item->childNodes->item(0)->getAttribute("href");
     $query[]=array($title,null,null,$url,$hash);
@@ -60,7 +59,7 @@ function govResheniq() {
       continue;
     $title = $item->childNodes->item(2)->childNodes->item(0)->textContent;
     $title = text_cleanSpaces($title);
-    $title = "Решение: ".text_fixCase($title);
+    $title = "Решение: ".$title;
     $url = "http://www.government.bg".$item->childNodes->item(2)->getAttribute("href");
     $query[]=array($title,null,null,$url,$hash);
   }
@@ -88,7 +87,7 @@ function govSabitiq() {
     $hash = md5($item->textContent);
     $title = $item->childNodes->item(1)->textContent;
     $title = text_cleanSpaces($title);
-    $title = "Събитие: ".text_fixCase($title);
+    $title = "Събитие: ".$title;
     $url = "http://www.government.bg".$item->getAttribute("href");
     $query[]=array($title,null,null,$url,$hash);
   }
@@ -112,7 +111,7 @@ function govDokumenti() {
     $hash = md5($item->textContent);
     $title = $item->childNodes->item(1)->textContent;
     $title = text_cleanSpaces($title);
-    $title = "Нов документ: ".text_fixCase($title);
+    $title = "Нов документ: ".$title;
     $url = "http://www.government.bg".$item->getAttribute("href");
     $query[]=array($title,null,null,$url,$hash);
   }

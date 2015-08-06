@@ -12,23 +12,23 @@ function napAktualno() {
   
   $html = loadURL("http://www.nap.bg/page?id=223",0);
   if (!$html) return;
-  $items = nap_xpathDoc($html,"//div[@id='column2']//li[@class='news']");
+  $items = nap_xpathDoc($html,"//div[@id='col2']//li");
 
   $query=array();
 	foreach ($items as $item) {
     
 
-    $date = $item->childNodes->item(1)->textContent;
+    $date = $item->childNodes->item(2)->textContent;
     $date = text_bgMonth($date);
     $date = mb_substr($date,6,4)."-".mb_substr($date,3,2)."-".mb_substr($date,0,2);
     if (strtotime($date)<strtotime("-2 week"))
       continue;
 
-    $url = $item->childNodes->item(0)->getAttribute("onclick");
+    $url = $item->childNodes->item(1)->getAttribute("onclick");
     $url = "http://www.nap.bg".substr($url,12,strpos($url,"'",12)-12);
     $hash = md5($url);
 
-    $title = $item->childNodes->item(0)->textContent;
+    $title = $item->childNodes->item(1)->textContent;
     $title = nap_cleanText($title);
     $query[]=array($title,null,$date,$url,$hash);
   }

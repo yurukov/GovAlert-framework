@@ -58,8 +58,6 @@ function basZemetreseniq() {
         if ($direction==null || $directionNew[0]<$direction[0]) {
           $town = $row[0];
           $direction = $directionNew;
-          if ($direction[0]<40)
-            break;      
         }      
       }
     }

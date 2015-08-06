@@ -271,7 +271,6 @@ function mvrBurgas() {
     if (count($query)>0) {
       if (mb_strlen($query[count($query)-1][0])<100) {
         $title=$fulltext;
-        $title=text_fixCase($title);
         if (mb_strrpos($title,".")>120) {
           $stoppos=0;
           while (($stoppos = mb_strpos($title,".",$stoppos+1))<=120);
@@ -336,7 +335,6 @@ function mvrPlovdiv() {
 
     $title = $item->childNodes->item(2)->textContent;
     $title = text_cleanSpaces($title);
-    $title = text_fixCase($title);
     if (mb_strrpos($title,".")>120) {
       $stoppos=0;
       while (($stoppos = mb_strpos($title,".",$stoppos+1))<=120);

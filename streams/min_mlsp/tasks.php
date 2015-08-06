@@ -2,8 +2,9 @@
 
 /*
 
-0: обяви http://www.mrrb.government.bg/?controller=category&action=notice&catid=38
-1: полезна информация http://www.mrrb.government.bg/?controller=category&catid=39
+0: новини http://www.mlsp.government.bg/bg/news/listing.asp?catid=1
+1: събития http://www.mlsp.government.bg/bg/news/listing.asp?catid=2
+2: галерия http://www.mlsp.government.bg/bg/gallery/index.htm
 
 */
 

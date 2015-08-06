@@ -1,8 +1,8 @@
 <?php
 
-ini_set('user_agent','Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36 (email=yurukov@gmail.com; reason=scraping data,please contact if any issues)');  
+ini_set('user_agent','Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36 (email=yurukov@gmail.com; reason=scraping data, please contact me if you find any issues)');  
 ini_set('default_socket_timeout', 30); 
-set_time_limit(0);
+set_time_limit(20*60);
 date_default_timezone_set('Europe/Sofia');
 mb_internal_encoding("UTF-8");
 mb_regex_encoding("UTF-8");
@@ -229,27 +229,11 @@ function setPageLoad($url,$loadstart) {
   $res = $link->query("insert LOW_PRIORITY ignore into scrape_load (sourceid,category,url,loadtime) value ".
     "(".$session["sourceid"].",".$session["category"].",'$url',$loadtime)") or reportDBErrorAndDie();      
 }
-/*
-function checkPageChanged($html,$linki) {
-  global $link,$session;
-  if (!checkSession())
-    return false;
-  $hash = md5($html);
-  $res = $link->query("select hash from scrape where hash='$hash' and sourceid=".$session["sourceid"]." and url=$linki limit 1") or reportDBErrorAndDie();      
-  if ($res->num_rows>0) {
-    $res->free();
-    return false;
-  }
 
-  $res->free();
-  $link->query("replace scrape (sourceid,url,hash,loadts) value (".$session["sourceid"].",$linki,'$hash',now())") or reportDBErrorAndDie();      
-  return true;
-}
-*/
 function loadGeoImage($lat,$lng,$zoom) {
   $filename = "/www/govalert/media/maps/static/".str_replace(".","_",$lat."_".$lng)."_$zoom.png";
   if (!file_exists($filename)) {
-    $url = "http://api.tiles.mapbox.com/v3/yurukov.i6nmgf1c/pin-l-star+ff0000($lng,$lat,$zoom)/$lng,$lat,$zoom/640x480.png";
+    $url = "http://api.tiles.mapbox.com/v3/yurukov.i6nmgf1c/pin-l-star+ff0000($lng,$lat,$zoom)/$lng,$lat,$zoom/640x480.png?access_token=[USERTOKEN]";
     $loadstart=microtime(true);
     exec("wget --header='Connection: keep-alive' --header='Cache-Control: max-age=0' --header='Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' --header='User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36' --header='Accept-Encoding: gzip,deflate,sdch' --header='Accept-Language: en-US,en;q=0.8,bg;q=0.6,de;q=0.4' -q -O '$filename' '$url'");
     setPageLoad($url,$loadstart);
@@ -258,6 +242,26 @@ function loadGeoImage($lat,$lng,$zoom) {
 
   if (!file_exists($filename) || filesize($filename)==0) {
     reportError("Грешка при зареждане на геоснимка $lat,$lng,$zoom.");
+    return null;
+  }
+
+  return $filename;
+}
+
+function loadGeoJSONImage($geoJson) {
+  $filename = "/www/govalert/media/maps/static/".md5($geoJson).".png";
+
+  if (!file_exists($filename)) {
+    $url = "https://api.tiles.mapbox.com/v4/yurukov.i6nmgf1c/geojson(".urlencode($geoJson).")/auto/800x600.png?access_token=[USERTOKEN]";
+echo $url."\n";
+    $loadstart=microtime(true);
+    exec("wget --header='Connection: keep-alive' --header='Cache-Control: max-age=0' --header='Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' --header='User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36' --header='Accept-Encoding: gzip,deflate,sdch' --header='Accept-Language: en-US,en;q=0.8,bg;q=0.6,de;q=0.4' -q -O '$filename' '$url'");
+    setPageLoad($url,$loadstart);
+    usleep(500000);
+  }
+
+  if (!file_exists($filename) || filesize($filename)==0) {
+    reportError("Грешка при зареждане на геоснимка с geoJson: $geoJson");
     return null;
   }
 
@@ -284,6 +288,9 @@ function loadItemImage($url,$type=null,$options) {
       fitinItemImage($filename,$type,$options);
 
     usleep(500000);
+  } else {
+    if (array_key_exists("ignoreCached",$options) && $options["ignoreCached"])
+      return null;
   }
 
   if (!file_exists($filename) || filesize($filename)==0) {
@@ -514,7 +521,7 @@ function checkTitle($title) {
 
 function runTasks($force) {
   global $link;
-  $res = $link->query("select tasktd from task_stat where tasks is null and tasktd>date_sub(now(), interval 30 minute) limit 1") or reportDBErrorAndDie();
+  $res = $link->query("select tasktd from task_stat where tasks is null and tasktd>date_sub(now(), interval 20 minute) limit 1") or reportDBErrorAndDie();
   if ($res->num_rows>0) {
     echo "Върви друг процес.\n";
     return;
@@ -614,13 +621,6 @@ function text_cleanSpaces($text) {
   $text = str_replace(" "," ",$text);
 	$text = mb_ereg_replace("[\n\r\t ]+"," ",$text);
   $text = mb_ereg_replace("(^\s+)|(\s+$)", "", $text);
-  return $text;
-}
-
-function text_fixCase($text) {
-  if (mb_convert_case($text,MB_CASE_UPPER)==$text ||
-      mb_convert_case($text,MB_CASE_LOWER)==$text)
-    return mb_convert_case($text,MB_CASE_TITLE);
   return $text;
 }
 

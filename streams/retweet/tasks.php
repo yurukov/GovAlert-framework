@@ -12,19 +12,37 @@ function retweetAccounts() {
     return;
   }
 
-  $attempts=4;
-  $minActivity = 3;
+  $attempts = 4;
+  $minActivity = 2;
   $maxtimetowait = 2*60*60*24;
   $mintimetocheck = 60*15;
   $maxtimetocheck = 60*60*24*4+$mintimetocheck;
   $kirilica = array('а','б','в','г','д','е','ж','з','и','й','к','л',
   'м','н','о','п','р','с','т','у','ф','х','ц','ш','щ','ъ','ь','ю','я');
+
+  require_once('/www/govalert/twitter/twitteroauth/twitteroauth.php');
+  require_once('/www/govalert/twitter/config.php');
+
+  $res=$link->query("SELECT token, secret FROM twitter_auth where handle like 'GovAlertEU'") or reportDBErrorAndDie();  
+  if ($row=$res->fetch_assoc()) {
+    $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, $row['token'],$row['secret']);
+    $connection->host = "https://api.twitter.com/1.1/";
+    $connection->useragent = 'Bulgarian public sector alerts';
+    $connection->ssl_verifypeer = TRUE;
+  } else {
+    reportError("Could not fetch twitter token.");
+    return;
+  }
+  $res->free();
   
   while ($attempts>0) {
     $attempts--;
 
+//    $res=$link->query("SELECT twitter, lasttweet, lastretweet, if(tw_num=0,0,(tw_rts+tw_fav)/tw_num*2/3) ".
+//      "FROM s_retweet where twitter='SvMalinov' limit 1") or reportDBErrorAndDie();
+  
     $res=$link->query("SELECT twitter, lasttweet, lastretweet, if(tw_num=0,0,(tw_rts+tw_fav)/tw_num*2/3) ".
-      "FROM s_retweet order by lastcheck asc limit 1") or reportDBErrorAndDie();
+     "FROM s_retweet order by lastcheck asc limit 1") or reportDBErrorAndDie();
 
     $account='BgPresidency';
     $lasttweet=null;
@@ -40,13 +58,6 @@ function retweetAccounts() {
 
     echo "> Проверявам за tweets в на $account [спешно=".($forceRT?1:0).", средна активност=$avgActivity]\n";
 
-    require_once('/www/govalert/twitter/twitteroauth/twitteroauth.php');
-    require_once('/www/govalert/twitter/config.php');
-
-    $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, CONSUMER_TOKEN_GOVALERTEU, CONSUMER_TOKEN_SECRET_GOVALERTEU);
-    $connection->host = "https://api.twitter.com/1.1/";
-    $connection->useragent = 'Activist Dashboard notifier';
-    $connection->ssl_verifypeer = TRUE;
     
     $props = array(
       'screen_name' => $account,
@@ -56,6 +67,7 @@ function retweetAccounts() {
     );
     if ($lasttweet!=null)
       $props['since_id']=$lasttweet;
+
     $tres = $connection->get('statuses/user_timeline',$props);
 
     $tweets = array();

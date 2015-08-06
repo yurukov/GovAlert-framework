@@ -26,8 +26,8 @@ function interpolIzdirvani() {
 function interpolProcessIzcheznali() {
   interpolProcess(array("изчезнали",
     1,
-    "%s е обявен%s за безследно изчезнал%2\$s /CC @Interpol_HQ",
-    "Обявени са още %d българи за безследно изчезнали  /CC @Interpol_HQ",
+    "%s е обявен%s за безследно изчезнал%2\$s от @Interpol_HQ",
+    "Обявени са още %d българи за безследно изчезнали от @Interpol_HQ",
     "http://www.interpol.int/notice/search/missing/(offset)/0/(Nationality)/122/(current_age_maxi)/100/(search)/1",
     "http://www.interpol.int/notice/search/missing",
     "lipsva", array("mibulgaria","GovAlertEU")));
@@ -36,8 +36,8 @@ function interpolProcessIzcheznali() {
 function interpolProcessIzdirvani() {
   interpolProcess(array("издирвани",
     0,
-    "%s е обявен%s за издирване /CC @Interpol_HQ",
-    "Обявени са още %d души за издирване  /CC @Interpol_HQ",
+    "%s е обявен%s за издирване от @Interpol_HQ",
+    "Обявени са още %d души за издирване от @Interpol_HQ",
     "http://www.interpol.int/notice/search/wanted/(offset)/%d/(Nationality)/122/(current_age_maxi)/100/(search)/1",
     "http://www.interpol.int/notice/search/wanted",
     "mibulgaria", "GovAlertEU"));
@@ -134,7 +134,7 @@ function interpolLoad($prop) {
 function interpolProcess($prop) {
   global $link;
 
-  setSession(18,$prop[1]==1?1:2);;
+  setSession(18,$prop[1]==1?1:2);
 
   $query=array();
   $codes=array();
@@ -165,7 +165,8 @@ function interpolProcess($prop) {
     if ($media==null && !$old && !$noimage)
       continue;
     
-    $suffix=mb_substr($row["name"],-1)=='а'?'а':'';
+//    $suffix=mb_substr($row["name"],-1)=='а'?'а':'';
+    $suffix='/а';
     $title=sprintf($prop[2],$row["name"],$suffix);
     $hash=md5($row["code"]);
     $query[]=array($title,null,'now',$url,$hash,$media);
@@ -183,6 +184,55 @@ function interpolProcess($prop) {
     echo "Маркирам ".count($codes)." ${prop[0]} като съобщени\n";
     $link->query("update s_interpol set processed=1 where code in ('".implode("','",$codes)."')") or reportDBErrorAndDie();
   }
+}
+
+function interpolCleanup() {
+  global $link;
+
+  setSession(18,3);
+
+  $res = $link->query("SELECT itemid,category,url,tweetid FROM item where sourceid=18 and url is not null and tweetid is not null") or reportDBErrorAndDie();
+  if ($res->num_rows==0) {
+    echo "> Няма обявени за издирване или изчезнали, които подлежат на проверка.\n";
+    return;
+  }
+
+  echo "> Има ".$res->num_rows." обявени издирвани или изчезнали. Проверявам дали са актуални...\n";
+
+  $removed = array();
+  $removedLipsva = array();
+  $removedMI = array();
+  while ($row = $res->fetch_assoc()) {
+    $html = loadURL($row['url']);
+    if (!$html) return;
+    if (mb_strpos($html,'Identity unknown')!==false) {
+      $removed[]=$row['itemid'];
+      if ($row['tweetid']) {
+        if ($row['category']==1)
+          $removedLipsva[]=$row['tweetid'];
+        else
+          $removedMI[]=$row['tweetid'];
+      }
+    }
+  }
+
+  if (count($removed)>0) {
+    echo "> Има ".count($removed)." премахнати от списъците на Интерпол. Изтривам.\n";
+    
+    $link->query("UPDATE LOW_PRIORITY item SET url=null,tweetid=null where itemid in (".implode(",",$removed).")") or reportDBErrorAndDie();
+    if (count($removedLipsva)>0)
+      deleteTweets('lipsva',$removedLipsva);
+    if (count($removedMI)>0)
+      deleteTweets('mibulgaria',$removedMI);
+
+    $tweet_prefix = count($removed)>1 ? count($removed)." са свалени" : "Едно лице е свалено";
+    queueTextTweet("$tweet_prefix от списъците за издирване на @Interpol_HQ в последните 3 дни. /cc @MIBulgaria @lipsva");
+
+  } else {
+    echo "> Няма премахнати от списъците на Интерпол.\n";
+  }
+
+
 }
 
 /*

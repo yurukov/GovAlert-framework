@@ -57,7 +57,7 @@ function queueTweets($itemids, $account='govalerteu',$retweet=false) {
   else if (is_array($retweet))
     $retweet = "'".implode(",",$retweet)."'";
   else
-    $retweet="govalerteu";
+    $retweet="'govalerteu'";
 
   $query = array();
   foreach ($itemids as $id)
@@ -71,17 +71,19 @@ function replaceAccounts($title,$cutlen) {
     "@CIKBG" => array("Централната избирателна комисия","ЦИК"),
     "@BgPresidency" => array("Президентът на РБ","Президента на РБ","президентът на Република България","президента на Република България","президентът Плевнелиев","президента Плевнелиев","президентът Росен Плевнелиев","президента Росен Плевнелиев"),
     "@EP_Bulgaria" => array("Европейски Парламент","Европейския Парламент","Европейският Парламент"),
-    "@TomislavDonchev" => array("Томислав Дончев"),
-    "@BoykoBorissov" => array("Бойко Борисов"),
-    "@SvMalinov" => array("Светослав Малинов"),
+    "@TomislavDonchev" => array("Томислав Дончев", "министър Дончев"),
+    "@BoykoBorissov" => array("Бойко Борисов","премиера Борисов","премиерът Борисов"),
+    "@SvMalinov" => array("Светослав Малинов", "министър Малинов"),
     "@evapaunova" => array("Ева Паунова"),
     "@JunckerEU" => array("Юнкер"),
-    "@IvailoKalfin" => array("Ивайло Калфин","Калфин"),
+    "@IvailoKalfin" => array("Ивайло Калфин","министър Калфин","Калфин"),
     "@FandakovaY" => array("Йорданка Фандъкова","Фандъкова"),
     "@Stoli4naOb6tina" => array("Столична община"),
     "@UniversitySofia" => array("Софийски университет"),
-    "@MoskovPetar" => array("Петър Москов"),
-    "@rmkanev" => array("Радан Кънев")
+    "@MoskovPetar" => array("Петър Москов", "министър Москов"),
+    "@rmkanev" => array("Радан Кънев"),
+    "@KunevaMeglena" => array("Меглена Кунева","министър Кунева"),
+    "@LilyanaPavlova" => array("Лиляна Павлова","министър Павлова")
   );
 
   foreach ($map as $account=>$strings)
@@ -93,7 +95,9 @@ function replaceAccounts($title,$cutlen) {
 function replaceAccount($title,$account,$cutlen,$texts) {
   $text=false;
   foreach ($texts as $textT) 
-    if (($loc=mb_stripos($title,$textT))!==false) {
+    if (($loc=mb_stripos($title,$textT))!==false &&
+        ($loc===0 || !mb_ereg_match("[а-яА-Я]",mb_substr($title,$loc-1,1))) &&
+        ($loc+mb_strlen($textT)==mb_strlen($title) || !mb_ereg_match("[а-яА-Я]",mb_substr($title,$loc+mb_strlen($textT),1)))) {
       $text=$textT;
       break;
     }
@@ -105,7 +109,7 @@ function replaceAccount($title,$account,$cutlen,$texts) {
   return $firstPart.$account.mb_substr($title,$loc+mb_strlen($text));  
 }
 
-function postTwitter() {
+function loadAccounts() {
   global $link;
 
   $twitterAuth=array();
@@ -115,10 +119,50 @@ function postTwitter() {
   }
   $res->free();
 
-  $res=$link->query("select t.tweetid, t.itemid, t.text, t.sourceid, t.account, t.retweet, i.title, i.url, s.shortname, s.geo, count(m.type) media from tweet t left outer join item i on i.itemid=t.itemid left outer join source s on i.sourceid=s.sourceid or t.sourceid=s.sourceid left outer join item_media m on m.itemid=t.itemid where error is null group by t.itemid order by t.account, t.priority desc, t.queued, t.itemid limit 5") or reportDBErrorAndDie();  
+  return $twitterAuth;
+}
+
+function deleteTweets($account,$tweets) {
+  global $link;
+  $twitterAuth = loadAccounts();
+
+  require_once('/www/govalert/twitter/twitteroauth/twitteroauth.php');
+  require_once('/www/govalert/twitter/config.php');
+
+  $currentAccount=strtolower($account);
+  $currentAuth=$twitterAuth[$currentAccount];
+  $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, $currentAuth[0], $currentAuth[1]);
+  $connection->host = "https://api.twitter.com/1.1/";
+  $connection->useragent = 'Bulgarian public sector alerts';
+  $connection->ssl_verifypeer = TRUE;
+  $connection->content_type = 'application/x-www-form-urlencoded';
+
+  foreach ($tweets as $tweet) {
+    echo "> Изтривам tweet $tweet от $account...";
+    $tres = $connection->post('statuses/destroy', array(
+      'id' => $tweet,
+      'trim_user' => 'true'
+    ));
+
+    if ($tres->errors) {
+      echo "грешка: ".$tres->errors[0]->message."\n";
+      $errortext = $link->escape_string(json_encode($tres));
+      reportError("Грешка докато изтривах tweet $tweet от $account:\n$errortext");
+    } else {
+      echo "готово.\n";
+    }
+  }
+}
+
+function postTwitter() {
+  global $link;
+
+  $res=$link->query("select t.tweetid, t.itemid, t.text, t.sourceid, t.account, t.retweet, i.title, i.url, s.shortname, s.geo, count(m.type) media from tweet t left outer join item i on i.itemid=t.itemid left outer join source s on i.sourceid=s.sourceid or t.sourceid=s.sourceid left outer join item_media m on m.itemid=t.itemid where error is null group by t.tweetid order by t.account, t.priority desc, t.queued, t.itemid limit 5") or reportDBErrorAndDie();  
 
   if ($res->num_rows>0) {
     echo "Изпращам ".$res->num_rows." tweet/s\n";
+
+    $twitterAuth = loadAccounts();
 
     require_once('/www/govalert/twitter/twitteroauth/twitteroauth.php');
     require_once('/www/govalert/twitter/config.php');
@@ -137,7 +181,7 @@ function postTwitter() {
         $currentAuth=$twitterAuth[$currentAccount];
         $connection = new TwitterOAuth(CONSUMER_KEY, CONSUMER_SECRET, $currentAuth[0], $currentAuth[1]);
         $connection->host = "https://api.twitter.com/1.1/";
-        $connection->useragent = 'Activist Dashboard notifier';
+        $connection->useragent = 'Bulgarian public sector alerts';
         $connection->ssl_verifypeer = TRUE;
         $connection->content_type = 'application/x-www-form-urlencoded';
       }
@@ -148,7 +192,7 @@ function postTwitter() {
 
         $uploadimages=array();     
         $geo = explode(",",$row['geo']);
-        if (intval($row['media'])!=0) {
+        if (intval($row['media'])!=0 && $row['itemid']) {
           $connection->host = "https://upload.twitter.com/1.1/";
 
           $resmedia=$link->query("select type,value from item_media where itemid='".$row['itemid']."' limit 3") or reportDBErrorAndDie();  
@@ -187,7 +231,7 @@ function postTwitter() {
         } else {
           $title = $row['text'];
         }
-        if (mb_substr($title,0,8)!="@yurukov" && $row['account']=="govalerteu")
+        if (mb_substr($title,0,8)!="@yurukov" && strtolower($row['account'])=="govalerteu")
           $prefix = "[${row['shortname']}] ";
         $messagelen -= ($row['text']==null ? 23 : 0) + ($uploadimages ? 23 : 0) + mb_strlen($prefix);
 
@@ -211,14 +255,21 @@ function postTwitter() {
 
         $tres = $connection->post('statuses/update', $params);
 
-        if ($row['retweet'] && !$tres->errors) {
+        if (!$tres->errors) {
           $tweetid=$link->escape_string($tres->id_str);
-          $accounts = split(",",$row['retweet']);
-          $query = array();
-          foreach ($accounts as $account) {
-            $query[]="('$account',now(),'$tweetid')";
+
+          if ($row['itemid']) {
+            $link->query("update LOW_PRIORITY item set tweetid='$tweetid' where itemid='".$row['itemid']."' limit 1") or reportDBErrorAndDie(); 
           }
-          $link->query("insert LOW_PRIORITY ignore into tweet (account, queued, retweet) values ".implode(",",$query)) or reportDBErrorAndDie(); 
+
+          if ($row['retweet']) {
+            $accounts = split(",",$row['retweet']);
+            $query = array();
+            foreach ($accounts as $account) {
+              $query[]="('$account',now(),'$tweetid')";
+            }
+            $link->query("insert LOW_PRIORITY ignore into tweet (account, queued, retweet) values ".implode(",",$query)) or reportDBErrorAndDie(); 
+          }
         }
       }
 
@@ -226,7 +277,7 @@ function postTwitter() {
         echo "Грешка: временна грешка на ауторизацията.\n";
       } else {
         if ($tres->errors) {
-          echo "Грешка: $message\n";
+          echo "Грешка: $message | ".$tres->errors[0]->message."\n";
           $errortext = $link->escape_string(json_encode($tres));
           $link->query("update tweet set error='$errortext' where tweetid=${row['tweetid']} limit 1") or reportDBErrorAndDie();    
           break;

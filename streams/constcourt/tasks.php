@@ -24,7 +24,6 @@ function constcourtNovini() {
 
     $title = $item->childNodes->item(1)->firstChild->firstChild->textContent;
     $title = constcourt_cleanText($title);
-    $title = text_fixCase($title);
     $title = "Новина: ".$title;
     
     $url = $item->childNodes->item(1)->firstChild->firstChild->getAttribute("href");
@@ -56,7 +55,6 @@ function constcourtSaobchteniq() {
 
     $title = $item->childNodes->item(1)->firstChild->firstChild->textContent;
     $title = constcourt_cleanText($title);
-    $title = text_fixCase($title);
     $title = "Съобщение по дело: ".$title;
     
     $url = $item->childNodes->item(1)->firstChild->firstChild->getAttribute("href");

@@ -1,11 +1,12 @@
 <?php
 
 /*
-
-0: новини http://www.prb.bg/main/bg/News/
-1: документи http://www.prb.bg/main/bg/Documents/
-2: конкурс http://www.prb.bg/main/bg/konkursi
-3: галерия http://www.prb.bg/main/bg/gallery/
+0: новини http://www.prb.bg/bg/news/aktualno/
+1: документи http://www.prb.bg/bg/documents/spravki-i-analizi/
+2: конкурси http://www.prb.bg/bg/karieri/
+3: галерия http://www.prb.bg/bg/news/gallery/
+4: доклади http://www.prb.bg/bg/documents/godishni-dokladi/
+5: обществени поръчки http://www.prb.bg/bg/obshestveni-porchki/elektronni-prepiski/
 
 */
 
@@ -13,36 +14,59 @@ function prok_Novini() {
   echo "> Проверявам за новини в Прокуратурата\n";
   setSession(13,0);
 
-  $html = loadURL("http://www.prb.bg/main/bg/News/",0);
+  $html = loadURL("http://www.prb.bg/bg/news/aktualno/",0);
   if (!$html) return;
-  $items = prok_xpathDoc($html,"//div[@class='list-inner']");
+  $items = prok_xpathDoc($html,"//div[@class='article']//li[@class='list-group-item']");
 
   $query=array();
 	foreach ($items as $item) {
-    $hasimage=$item->childNodes->item(1)->nodeName=="a";
-      
-    $date = trim($item->childNodes->item(3+($hasimage?2:0))->textContent);
-    $date = mb_substr($date,6,4)."-".mb_substr($date,3,2)."-".mb_substr($date,0,2);
-    if (strtotime($date)<strtotime("-2 weeks"))
-      continue;
-    $description = trim($item->childNodes->item(5+($hasimage?2:0))->textContent);
-    $description = prok_cleanText($description);
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
 
-    $title = trim($item->childNodes->item(1+($hasimage?2:0))->textContent);
-    $title = prok_cleanTitle($title);
-    $title = prok_cleanText($title);
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
+      continue;
 
     $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
     $hash = md5($url);
-    $media = null;
-    if ($hasimage) {
-      $imageurl = $item->childNodes->item(1)->firstChild->getAttribute("src");
-      $imageurl=mb_ereg_replace("logo","big",$imageurl,"im");
-      $imageurl = "http://www.prb.bg$imageurl";
-      $imagetitle = trim($item->childNodes->item(3)->textContent);
-      $imagetitle = prok_cleanTitle($imagetitle);
-      $imagetitle = prok_cleanText($imagetitle);
-      $media = array("image" => array(loadItemImage($imageurl),$imagetitle));
+    if (!checkHash($hash))
+      continue;
+
+    $title = trim($item->childNodes->item(1)->textContent);
+    $title = prok_cleanTitle($title);
+    $title = prok_cleanText($title);
+
+    $item->removeChild($item->childNodes->item(3));
+    $item->removeChild($item->childNodes->item(1));
+    $description = trim($item->C14N());
+    $description = prok_cleanDesc($description);
+    $description = prok_cleanText($description);
+
+    $media=null;
+    $html1 = loadURL($url);
+    if ($html1) {
+      $media = array("image" => array());
+      $items1 = prok_xpathDoc($html1,"//div[@class='carousel-inner']//img");
+      foreach ($items1 as $item1) {
+        $imageurl = $item1->getAttribute("src");
+        if (strpos($imageurl,".720x420")!==false)
+          $imageurl=substr($imageurl,0,strpos($imageurl,".720x420"));
+        $imageurl = "http://www.prb.bg$imageurl";
+        $media["image"][]=array(loadItemImage($imageurl),$null);
+      }
+      if (count($media["image"])==0)
+        $media=null;
+      else if (count($media["image"])==1)
+        $media["image"]=$media["image"][0];
+    
+      $descrstart = mb_strpos($html1,'<div class="clearfix"></div>')+mb_strlen('<div class="clearfix"></div>');
+      $descrstart = mb_strpos($html1,'<div class="clearfix"></div>',$descrstart)+mb_strlen('<div class="clearfix"></div>');
+      $description = mb_substr($html1, $descrstart,mb_strpos($html1,'<div class="clearfix"></div>',$descrstart)-$descrstart);
+      $description = prok_cleanDesc($description);
+      $description = prok_cleanText($description);
     }
 
     $query[]=array($title,$description,$date,$url,$hash,$media);
@@ -57,26 +81,34 @@ function prok_Dokumenti() {
   echo "> Проверявам за документи в Прокуратурата\n";
   setSession(13,1);
 
-  $html = loadURL("http://www.prb.bg/main/bg/Documents/",1);
+  $html = loadURL("http://www.prb.bg/bg/documents/spravki-i-analizi/",1);
   if (!$html) return;
-  $items = prok_xpathDoc($html,"//div[@class='list-inner']");
+  $items = prok_xpathDoc($html,"//div[@class='article']//li[@class='list-group-item']");
 
   $query=array();
 	foreach ($items as $item) {
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
 
-    $date = trim($item->childNodes->item(3)->textContent);
-    $date = mb_substr($date,6,4)."-".mb_substr($date,3,2)."-".mb_substr($date,0,2);
-    if (strtotime($date)<strtotime("-2 months"))
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
       continue;
-    $description = trim($item->childNodes->item(5)->textContent);
-    $description = prok_cleanText($description);
-
-    $title = trim($item->childNodes->item(1)->textContent);
-    $title = prok_cleanTitle($title);
-    $title = "Документ: ".prok_cleanText($title);
 
     $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
     $hash = md5($url);
+
+    $title = trim($item->childNodes->item(1)->textContent);
+    $title = prok_cleanTitle($title);
+    $title = prok_cleanText($title);
+
+    $item->removeChild($item->childNodes->item(3));
+    $item->removeChild($item->childNodes->item(1));
+    $description = trim($item->C14N());
+    $description = prok_cleanDesc($description);
+    $description = prok_cleanText($description);
 
     $query[]=array($title,$description,$date,$url,$hash);
   }
@@ -90,26 +122,34 @@ function prok_Konkursi() {
   echo "> Проверявам за конкурси в Прокуратурата\n";
   setSession(13,2);
 
-  $html = loadURL("http://www.prb.bg/main/bg/konkursi",2);
+  $html = loadURL("http://www.prb.bg/bg/karieri/",2);
   if (!$html) return;
-  $items = prok_xpathDoc($html,"//div[@class='list-inner']");
+  $items = prok_xpathDoc($html,"//div[@class='article']//li[@class='list-group-item']");
 
   $query=array();
 	foreach ($items as $item) {
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
 
-    $date = trim($item->childNodes->item(3)->textContent);
-    $date = mb_substr($date,6,4)."-".mb_substr($date,3,2)."-".mb_substr($date,0,2);
-    if (strtotime($date)<strtotime("-2 weeks"))
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
       continue;
-    $description = trim($item->childNodes->item(5)->textContent);
-    $description = prok_cleanText($description);
+
+    $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
+    $hash = md5($url);
 
     $title = trim($item->childNodes->item(1)->textContent);
     $title = prok_cleanTitle($title);
-    $title = "Конкурс: ".prok_cleanText($title);
+    $title = prok_cleanText($title);
 
-    $url = "http://www.prb.bg".$item->childNodes->item(1+($hasimage?2:0))->firstChild->getAttribute("href");
-    $hash = md5($url);
+    $item->removeChild($item->childNodes->item(3));
+    $item->removeChild($item->childNodes->item(1));
+    $description = trim($item->C14N());
+    $description = prok_cleanDesc($description);
+    $description = prok_cleanText($description);
 
     $query[]=array($title,$description,$date,$url,$hash);
   }
@@ -123,49 +163,139 @@ function prok_Snimki() {
   echo "> Проверявам за галерии в Прокуратурата\n";
   setSession(13,3);
 
-  $html = loadURL("http://www.prb.bg/main/bg/gallery/",3);
+  $html = loadURL("http://www.prb.bg/bg/news/gallery/",3);
   if (!$html) return;
-  $items = prok_xpathDoc($html,"//div[@class='list-inner']");
+   $items = prok_xpathDoc($html,"//div[@class='article']//div[@class='col-md-6 col-sm-6 col-xs-6' and h3]");
 
   $query=array();
 	foreach ($items as $item) {
-    $date = trim($item->childNodes->item(5)->textContent);
-    $date = mb_substr($date,6,4)."-".mb_substr($date,3,2)."-".mb_substr($date,0,2);
-    if (strtotime($date)<strtotime("-2 weeks"))
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
+
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
       continue;
 
-    $title = trim($item->childNodes->item(3)->textContent);
+    $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
+    $hash = md5($url);
+    if (!checkHash($hash))
+      continue;
+
+    $title = trim($item->childNodes->item(1)->textContent);
     $title = prok_cleanTitle($title);
-    $title = "Снимки: ".$title;
     $title = prok_cleanText($title);
 
-    $url = "http://www.prb.bg".$item->childNodes->item(1)->getAttribute("href");
-    $hash = md5($url);
-    $media = array("image" => array());
-    $mhtml = loadURL($url);
-    if (!$mhtml) 
-      continue;
-
-    $mitems = prok_xpathDoc($mhtml,"//a[@class='thumb']");
-    foreach ($mitems as $mitem) {
-      $imageurl = $mitem->getAttribute("href");
-      $imageurl = "http://www.prb.bg$imageurl";
-      $imageurl = str_replace(array("logo","pic"),"big",$imageurl);
-      $imageurl = loadItemImage($imageurl);
-      if ($imageurl)
-        $media["image"][] = array($imageurl);
+    $media=null;
+    $html1 = loadURL($url);
+    if ($html1) {
+      $media = array("image" => array());
+      $items1 = prok_xpathDoc($html1,"//div[@class='carousel-inner']//img");
+      foreach ($items1 as $item1) {
+        $imageurl = $item1->getAttribute("src");
+        if (strpos($imageurl,".720x420")!==false)
+          $imageurl=substr($imageurl,0,strpos($imageurl,".720x420"));
+        $imageurl = "http://www.prb.bg$imageurl";
+        $media["image"][]=array(loadItemImage($imageurl),$null);
+      }
+      if (count($media["image"])==0)
+        $media=null;
+      else if (count($media["image"])==1)
+        $media["image"]=$media["image"][0];
     }
-  
-    if (count($media["image"])==0)
-      $media=null;
 
-    $query[]=array($title,null,$date,$url,$hash,$media);
+    $query[]=array($title,$description,$date,$url,$hash,$media);
   }
 
   echo "Възможни ".count($query)." нови галерии\n";
   $itemids = saveItems($query);
   queueTweets($itemids);
 }
+
+function prok_Dokladi() {
+  echo "> Проверявам за доклади в Прокуратурата\n";
+  setSession(13,4);
+
+  $html = loadURL("http://www.prb.bg/bg/documents/godishni-dokladi/",4);
+  if (!$html) return;
+  $items = prok_xpathDoc($html,"//div[@class='article']//li[@class='list-group-item']");
+
+  $query=array();
+	foreach ($items as $item) {
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
+
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
+      continue;
+
+    $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
+    $hash = md5($url);
+
+    $title = trim($item->childNodes->item(1)->textContent);
+    $title = prok_cleanTitle($title);
+    $title = prok_cleanText($title);
+
+    $item->removeChild($item->childNodes->item(3));
+    $item->removeChild($item->childNodes->item(1));
+    $description = trim($item->C14N());
+    $description = prok_cleanDesc($description);
+    $description = prok_cleanText($description);
+
+    $query[]=array($title,$description,$date,$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови доклади\n";
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
+
+function prok_Porachki() {
+  echo "> Проверявам за поръчки в Прокуратурата\n";
+  setSession(13,5);
+
+  $html = loadURL("http://www.prb.bg/bg/obshestveni-porchki/elektronni-prepiski/",5);
+  if (!$html) return;
+  $items = prok_xpathDoc($html,"//div[@class='article']//li[@class='list-group-item']");
+
+  $query=array();
+	foreach ($items as $item) {
+    if ($item->childNodes->item(1)->nodeName=='div') {
+      $item->removeChild($item->childNodes->item(1));
+      $item->removeChild($item->childNodes->item(0));
+    }
+
+    $date = trim($item->childNodes->item(3)->getAttribute('datetime'));
+    $date = str_replace("T"," ",$date);
+    if (strtotime($date)<strtotime("-1 weeks"))
+      continue;
+
+    $url = "http://www.prb.bg".$item->childNodes->item(1)->firstChild->getAttribute("href");
+    $hash = md5($url);
+
+    $title = trim($item->childNodes->item(1)->textContent);
+    $title = prok_cleanTitle($title);
+    $title = prok_cleanText($title);
+
+    $item->removeChild($item->childNodes->item(3));
+    $item->removeChild($item->childNodes->item(1));
+    $description = trim($item->C14N());
+    $description = prok_cleanDesc($description);
+    $description = prok_cleanText($description);
+
+    $query[]=array($title,$description,$date,$url,$hash);
+  }
+
+  echo "Възможни ".count($query)." нови поръчки\n";
+  $itemids = saveItems($query);
+  queueTweets($itemids);
+}
+
 
 /*
 -----------------------------------------------------------------
@@ -198,6 +328,14 @@ function prok_cleanTitle($title) {
   $title=mb_ereg_replace("(ИЗБИРАТЕЛНИ КОМИСИИ)|(избирателна комисия)","ИК",$title,"im");
   $title=mb_ereg_replace("ОБЯВЛЕНИЕОТНОСНО:?|ОТНОСНО:?|С Ъ О Б Щ Е Н И Е|СЪОБЩЕНИЕ|г\.|ч\.|\\\\|„|\"|'","",$title,"im");
   return $title;
+}
+
+function prok_cleanDesc($description) {
+  $description = mb_ereg_replace(" </","</",mb_ereg_replace("> ",">",$description),"im");
+  $description = mb_ereg_replace("\s?(title|name|style|class|id|target)=[\"'].*?[\"']\s?","",$description,"im");
+  $description = mb_ereg_replace("<p>[  ]*</p>|<a>[  ]*</a>|<div>[  ]*</div>|<span>[  ]*</span>","",$description,"im");
+  $description = mb_ereg_replace("</?li>","",$description,"im");
+  return $description;
 }
 
 function prok_cleanText($text) {

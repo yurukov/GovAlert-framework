@@ -28,10 +28,8 @@ function strategy_processUrl($url) {
     return;
   $item = $items->item(0);
 
-  $hash = md5($item->textContent);
   $title = $item->childNodes->item(1)->textContent;
   $title = strategy_cleanText($title);
-  $title = text_fixCase($title);
   $item->removeChild($item->childNodes->item(0));
   $description = $item->C14N();
   $description = mb_ereg_replace(" </","</",mb_ereg_replace("> ",">",$description));
@@ -39,6 +37,9 @@ function strategy_processUrl($url) {
   $description = strategy_cleanText($description);
 	$description = str_replace("\\r ","",$description);
   $description = mb_ereg_replace("<p>[  ]*</p>|<a>[  ]*</a>|<div>[  ]*</div>","",$description);
+
+  $hash = md5($url);
+
   $itemids = saveItem($title,$description,"now",$url,$hash);
   queueTweets($itemids,'govalerteu','GovBulgaria');
 }
